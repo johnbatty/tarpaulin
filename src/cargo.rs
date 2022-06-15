@@ -35,7 +35,8 @@ struct CargoVersionInfo {
 
 impl CargoVersionInfo {
     fn supports_llvm_cov(&self) -> bool {
-        (self.minor >= 50 && self.channel == Channel::Nightly) || self.minor >= 60
+        true
+        //(self.minor >= 50 && self.channel == Channel::Nightly) || self.minor >= 60
     }
 }
 
