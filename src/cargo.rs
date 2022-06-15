@@ -804,11 +804,12 @@ fn setup_environment(cmd: &mut Command, config: &Config) {
 }
 
 pub fn supports_llvm_coverage() -> bool {
-    if let Some(version) = CARGO_VERSION_INFO.as_ref() {
-        version.supports_llvm_cov()
-    } else {
-        false
-    }
+    true
+    // if let Some(version) = CARGO_VERSION_INFO.as_ref() {
+    //     version.supports_llvm_cov()
+    // } else {
+    //     false
+    // }
 }
 
 pub fn llvm_coverage_rustflag() -> &'static str {
