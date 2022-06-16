@@ -35,8 +35,7 @@ struct CargoVersionInfo {
 
 impl CargoVersionInfo {
     fn supports_llvm_cov(&self) -> bool {
-        true
-        //(self.minor >= 50 && self.channel == Channel::Nightly) || self.minor >= 60
+        (self.minor >= 50 && self.channel == Channel::Nightly) || self.minor >= 60
     }
 }
 
@@ -164,6 +163,9 @@ lazy_static! {
     static ref CARGO_VERSION_INFO: Option<CargoVersionInfo> = {
         let version_info = Regex::new(
             r"cargo (\d)\.(\d+)\.\d+([\-betanightly]*) \([[:alnum:]]+ (\d{4})-(\d{2})-(\d{2})\)",
+        ).unwrap();
+        let version_info_without_date = Regex::new(
+            r"cargo (\d)\.(\d+)\.\d+([\-betanightly]*)",
         )
         .unwrap();
         Command::new("cargo")
@@ -192,7 +194,30 @@ lazy_static! {
                         month,
                         day,
                     })
-                } else {
+                } else if let Some(cap) = version_info_without_date.captures(&s) {
+                    let major = cap[1].parse().unwrap();
+                    let minor = cap[2].parse().unwrap();
+                    // We expect a string like `cargo 1.50.0-nightly (a0f433460 2020-02-01)
+                    // the version number either has `-nightly` `-beta` or empty for stable
+                    let channel = match &cap[3] {
+                        "-nightly" => Channel::Nightly,
+                        "-beta" => Channel::Beta,
+                        _ => Channel::Stable,
+                    };
+                    let year = 2022;
+                    let month = 6;
+                    let day = 16;
+                    Some(CargoVersionInfo {
+                        major,
+                        minor,
+                        channel,
+                        year,
+                        month,
+                        day,
+                    })
+                }
+                else
+                {
                     None
                 }
             })
@@ -804,12 +829,11 @@ fn setup_environment(cmd: &mut Command, config: &Config) {
 }
 
 pub fn supports_llvm_coverage() -> bool {
-    true
-    // if let Some(version) = CARGO_VERSION_INFO.as_ref() {
-    //     version.supports_llvm_cov()
-    // } else {
-    //     false
-    // }
+    if let Some(version) = CARGO_VERSION_INFO.as_ref() {
+        version.supports_llvm_cov()
+    } else {
+        false
+    }
 }
 
 pub fn llvm_coverage_rustflag() -> &'static str {
