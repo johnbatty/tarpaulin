@@ -159,67 +159,72 @@ impl DocTestBinaryMeta {
     }
 }
 
+fn cargo_version_info(s: &str) -> Option<CargoVersionInfo> {
+    let version_info = Regex::new(
+        r"cargo (\d)\.(\d+)\.\d+([\-betanightly]*) \([[:alnum:]]+ (\d{4})-(\d{2})-(\d{2})\)",
+    ).unwrap();
+    let version_info_without_date = Regex::new(
+        r"cargo (\d)\.(\d+)\.\d+([\-betanightly]*)",
+    )
+    .unwrap();
+
+    if let Some(cap) = version_info.captures(&s) {
+        let major = cap[1].parse().unwrap();
+        let minor = cap[2].parse().unwrap();
+        // We expect a string like `cargo 1.50.0-nightly (a0f433460 2020-02-01)
+        // the version number either has `-nightly` `-beta` or empty for stable
+        let channel = match &cap[3] {
+            "-nightly" => Channel::Nightly,
+            "-beta" => Channel::Beta,
+            _ => Channel::Stable,
+        };
+        let year = cap[4].parse().unwrap();
+        let month = cap[5].parse().unwrap();
+        let day = cap[6].parse().unwrap();
+        Some(CargoVersionInfo {
+            major,
+            minor,
+            channel,
+            year,
+            month,
+            day,
+        })
+    } else if let Some(cap) = version_info_without_date.captures(&s) {
+        let major = cap[1].parse().unwrap();
+        let minor = cap[2].parse().unwrap();
+        // We expect a string like `cargo 1.50.0-nightly (a0f433460 2020-02-01)
+        // the version number either has `-nightly` `-beta` or empty for stable
+        let channel = match &cap[3] {
+            "-nightly" => Channel::Nightly,
+            "-beta" => Channel::Beta,
+            _ => Channel::Stable,
+        };
+        let year = 2022;
+        let month = 1;
+        let day = 1;
+        Some(CargoVersionInfo {
+            major,
+            minor,
+            channel,
+            year,
+            month,
+            day,
+        })
+    }
+    else
+    {
+        None
+    }
+}
+
 lazy_static! {
     static ref CARGO_VERSION_INFO: Option<CargoVersionInfo> = {
-        let version_info = Regex::new(
-            r"cargo (\d)\.(\d+)\.\d+([\-betanightly]*) \([[:alnum:]]+ (\d{4})-(\d{2})-(\d{2})\)",
-        ).unwrap();
-        let version_info_without_date = Regex::new(
-            r"cargo (\d)\.(\d+)\.\d+([\-betanightly]*)",
-        )
-        .unwrap();
         Command::new("cargo")
             .arg("--version")
             .output()
             .map(|x| {
                 let s = String::from_utf8_lossy(&x.stdout);
-                if let Some(cap) = version_info.captures(&s) {
-                    let major = cap[1].parse().unwrap();
-                    let minor = cap[2].parse().unwrap();
-                    // We expect a string like `cargo 1.50.0-nightly (a0f433460 2020-02-01)
-                    // the version number either has `-nightly` `-beta` or empty for stable
-                    let channel = match &cap[3] {
-                        "-nightly" => Channel::Nightly,
-                        "-beta" => Channel::Beta,
-                        _ => Channel::Stable,
-                    };
-                    let year = cap[4].parse().unwrap();
-                    let month = cap[5].parse().unwrap();
-                    let day = cap[6].parse().unwrap();
-                    Some(CargoVersionInfo {
-                        major,
-                        minor,
-                        channel,
-                        year,
-                        month,
-                        day,
-                    })
-                } else if let Some(cap) = version_info_without_date.captures(&s) {
-                    let major = cap[1].parse().unwrap();
-                    let minor = cap[2].parse().unwrap();
-                    // We expect a string like `cargo 1.50.0-nightly (a0f433460 2020-02-01)
-                    // the version number either has `-nightly` `-beta` or empty for stable
-                    let channel = match &cap[3] {
-                        "-nightly" => Channel::Nightly,
-                        "-beta" => Channel::Beta,
-                        _ => Channel::Stable,
-                    };
-                    let year = 2022;
-                    let month = 6;
-                    let day = 16;
-                    Some(CargoVersionInfo {
-                        major,
-                        minor,
-                        channel,
-                        year,
-                        month,
-                        day,
-                    })
-                }
-                else
-                {
-                    None
-                }
+                cargo_version_info(&s)
             })
             .unwrap_or(None)
     };
@@ -870,6 +875,19 @@ mod tests {
     }
 
     #[test]
+    fn parse_cargo_version_info_no_date() {
+        let cvi = cargo_version_info("cargo 1.61.0");
+        assert_eq!(cvi, Some(CargoVersionInfo {
+            major: 1,
+            minor: 61,
+            channel: Channel::Stable,
+            year: 2022,
+            month: 1,
+            day: 1
+        }))
+    }
+
+    #[test]
     fn llvm_cov_compatible_version() {
         let version = CargoVersionInfo {
             major: 1,
@@ -887,6 +905,15 @@ mod tests {
             year: 2022,
             month: 04,
             day: 7,
+        };
+        assert!(version.supports_llvm_cov());
+        let version = CargoVersionInfo {
+            major: 1,
+            minor: 61,
+            channel: Channel::Stable,
+            year: 2022,
+            month: 01,
+            day: 1,
         };
         assert!(version.supports_llvm_cov());
     }
